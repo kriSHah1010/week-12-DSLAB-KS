@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 def update_board(current_board):
     """
-    Executes one step of Conway's Game of Life on a binary NumPy array (1=live, 0=dead).
+    Executes one step of Conway's Game of Life on a binary NumPy array (1=live, 0=dead). 
     Uses array manipulation with 'wrap' padding for toroidal (wrapping) boundary conditions.
     """
     # Create a copy for the updated state to avoid changing the board mid-calculation
