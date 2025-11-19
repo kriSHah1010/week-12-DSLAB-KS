@@ -26,16 +26,20 @@ def update_board(current_board):
     # Initialize the neighbor count array to zeros
     neighbors = np.zeros_like(current_board, dtype=int)
     
-    # Count neighbors using roll - but we need to be careful not to count the center cell
-    # The issue with the previous approach: each roll includes the cell itself
-    
-    # Better approach: count all 8 directions
-    for dx in (-1, 0, 1):
-        for dy in (-1, 0, 1):
-            if dx == 0 and dy == 0:
-                continue  # Skip the center cell
-            # Roll and add to neighbors count
-            neighbors += np.roll(np.roll(current_board, dx, axis=0), dy, axis=1)
+    # Count neighbors for each cell using explicit indexing with periodic boundaries
+    for i in range(rows):
+        for j in range(cols):
+            # Count live neighbors in the 3x3 neighborhood (excluding center)
+            count = 0
+            for dx in [-1, 0, 1]:
+                for dy in [-1, 0, 1]:
+                    if dx == 0 and dy == 0:
+                        continue  # Skip the center cell
+                    # Calculate neighbor coordinates with periodic boundaries
+                    ni = (i + dx) % rows
+                    nj = (j + dy) % cols
+                    count += current_board[ni, nj]
+            neighbors[i, j] = count
     
     # Create a copy for the updated state
     updated_board = current_board.copy()
@@ -49,8 +53,6 @@ def update_board(current_board):
     # Rule 4 (Reproduction): Dead cells (0) become live if neighbors == 3
     must_live = (current_board == 0) & (neighbors == 3)
     updated_board[must_live] = 1
-
-    # Rule 2 (Survival): Live cells with 2 or 3 neighbors survive (implicitly handled)
 
     return updated_board
 
