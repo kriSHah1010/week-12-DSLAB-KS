@@ -43,24 +43,26 @@ def update_board(current_board):
     neighbors += np.roll(current_board, 1, axis=0)                       # Bottom
     neighbors += np.roll(np.roll(current_board, 1, axis=0), 1, axis=1)   # Bottom-Right
 
-    # Create a copy for the updated state
-    updated_board = current_board.copy()
+    # Initialize the next board state to all zeros (dead)
+    next_board = np.zeros_like(current_board, dtype=int)
     
     # --- Apply the Game of Life Rules (Vectorized) ---
     
-    # Rule 1 & 3 (Death): Live cells (1) die if neighbors < 2 (Underpopulation) or neighbors > 3 (Overpopulation)
-    # The cell must be currently alive (current_board == 1)
-    must_die = (current_board == 1) & ((neighbors < 2) | (neighbors > 3))
-    updated_board[must_die] = 0
+    # Rule 2 (Survival): A live cell (current_board == 1) remains alive if it has 2 or 3 neighbors.
+    # This also handles the case where cells with 4+ neighbors (Overpopulation) are NOT included.
+    survival = (current_board == 1) & ((neighbors == 2) | (neighbors == 3))
+    next_board[survival] = 1
     
-    # Rule 4 (Reproduction): Dead cells (0) become live if neighbors == 3
-    # The cell must be currently dead (current_board == 0)
-    must_live = (current_board == 0) & (neighbors == 3)
-    updated_board[must_live] = 1
-
-    # Rule 2 (Survival): Live cells with 2 or 3 neighbors (implicitly handled: they are 1 and do not meet the death condition)
-
-    return updated_board
+    # Rule 4 (Reproduction): A dead cell (current_board == 0) becomes alive if it has exactly 3 neighbors.
+    reproduction = (current_board == 0) & (neighbors == 3)
+    next_board[reproduction] = 1
+    
+    # All other cells remain dead (0).
+    # - Live cells with < 2 neighbors (Underpopulation) remain 0.
+    # - Live cells with > 3 neighbors (Overpopulation) remain 0.
+    # - Dead cells with != 3 neighbors remain 0.
+    
+    return next_board
 
 def show_game(game_board, n_steps=10, pause=0.5):
     """
