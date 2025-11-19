@@ -1,47 +1,85 @@
 import numpy as np
+from IPython.display import clear_output
 import time
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-# --- Exercise 2: Conway's Game of Life Step ---
+# --- Exercise 2: Iterative Game of Life Update ---
 
 def update_board(current_board):
     """
-    Executes one step of Conway's Game of Life on a binary NumPy array (1=live, 0=dead). 
-    Uses array manipulation with 'wrap' padding for toroidal (wrapping) boundary conditions.
+    Executes one step of Conway's Game of Life for the given binary NumPy array.
+    Uses periodic (toroidal) boundary conditions.
+
+    Parameters
+    ----------
+    current_board : numpy.ndarray
+        A binary array (0s and 1s) representing the current state of the board.
+
+    Returns
+    -------
+    numpy.ndarray
+        The board after one step of the Game of Life.
     """
-    # Create a copy for the updated state to avoid changing the board mid-calculation
-    updated_board = current_board.copy()
     rows, cols = current_board.shape
+    
+    # Initialize the neighbor count array to zeros
+    neighbors = np.zeros_like(current_board, dtype=int)
+    
+    # Efficiently count neighbors using NumPy's roll function for toroidal (wrapping) boundaries.
+    # We sum up 8 shifted copies of the board.
+    
+    # Top-Left, Top, Top-Right
+    neighbors += np.roll(np.roll(current_board, -1, axis=0), -1, axis=1) # Top-Left
+    neighbors += np.roll(current_board, -1, axis=0)                     # Top
+    neighbors += np.roll(np.roll(current_board, -1, axis=0), 1, axis=1)  # Top-Right
 
-    # Pad the board using 'wrap' (toroidal) mode to correctly count neighbors at the edges
-    padded_board = np.pad(current_board, 1, mode='wrap')
+    # Left, Right
+    neighbors += np.roll(current_board, -1, axis=1)                      # Left
+    neighbors += np.roll(current_board, 1, axis=1)                       # Right
 
-    # Initialize neighbor count array
-    neighbors = np.zeros_like(padded_board, dtype=int)
+    # Bottom-Left, Bottom, Bottom-Right
+    neighbors += np.roll(np.roll(current_board, 1, axis=0), -1, axis=1)  # Bottom-Left
+    neighbors += np.roll(current_board, 1, axis=0)                       # Bottom
+    neighbors += np.roll(np.roll(current_board, 1, axis=0), 1, axis=1)   # Bottom-Right
 
-    # Calculate neighbor sum efficiently by summing 8 shifted versions of the padded array
-    for i in range(3):
-        for j in range(3):
-            # Exclude the current cell itself (i=1, j=1 corresponds to a 0 shift)
-            if i != 1 or j != 1:
-                # np.roll shifts the entire array efficiently:
-                neighbors += np.roll(np.roll(padded_board, i - 1, axis=0), j - 1, axis=1)
-
-    # Extract the relevant center portion (un-pad it)
-    neighbors = neighbors[1:rows+1, 1:cols+1]
-
+    # Create a copy for the updated state
+    updated_board = current_board.copy()
+    
     # --- Apply the Game of Life Rules (Vectorized) ---
+    
+    # Rule 1 & 3 (Death): Live cells (1) die if neighbors < 2 (Underpopulation) or neighbors > 3 (Overpopulation)
+    # The cell must be currently alive (current_board == 1)
+    must_die = (current_board == 1) & ((neighbors < 2) | (neighbors > 3))
+    updated_board[must_die] = 0
+    
+    # Rule 4 (Reproduction): Dead cells (0) become live if neighbors == 3
+    # The cell must be currently dead (current_board == 0)
+    must_live = (current_board == 0) & (neighbors == 3)
+    updated_board[must_live] = 1
 
-    # 1 & 3. Death: Live cells (==1) die if neighbors < 2 (under) or neighbors > 3 (over)
-    live_cells_to_die = (current_board == 1) & ((neighbors < 2) | (neighbors > 3))
-    updated_board[live_cells_to_die] = 0
-
-    # 4. Birth: Dead cells (==0) become live if neighbors == 3 (reproduction)
-    dead_cells_to_live = (current_board == 0) & (neighbors == 3)
-    updated_board[dead_cells_to_live] = 1
+    # Rule 2 (Survival): Live cells with 2 or 3 neighbors (implicitly handled: they are 1 and do not meet the death condition)
 
     return updated_board
+
+def show_game(game_board, n_steps=10, pause=0.5):
+    """
+    Show `n_steps` of Conway's Game of Life (for notebook testing).
+    """
+    for step in range(n_steps):
+        clear_output(wait=True)
+
+        # update board
+        game_board = update_board(game_board)
+
+        # show board
+        sns.heatmap(game_board, cmap='plasma', cbar=False, square=True)
+        plt.title(f'Board State at Step {step + 1}')
+        plt.show()
+
+        # wait for the next step
+        if step + 1 < n_steps:
+            time.sleep(pause)
 
 # --- Bonus Exercise 3: Recursive Game of Life ---
 
@@ -49,112 +87,113 @@ def recursive_game_of_life(board=None, n_steps=10):
     """
     Plays Conway's Game of Life recursively for a given number of steps.
     """
-    # 1. Initialization
+    # 1. Initialization and Base Case Check
     if board is None:
+        # Initial call: Create a new random 10x10 board
         board = np.random.randint(2, size=(10, 10))
 
-    # 2. Base Case: Stop recursion when steps are complete
     if n_steps <= 0:
+        # Base Case: Stop recursion when steps are complete
         return board
 
-    # 3. Recursive Step: Update the board and call itself with one less step
+    # 2. Recursive Step
+    # a. Update the board state for one step
     next_board = update_board(board)
+
+    # b. Recursively call the function with the updated board and one less step
     return recursive_game_of_life(board=next_board, n_steps=n_steps - 1)
 
+# --- Exercise 4: 0/1 Knapsack Problem (Dynamic Programming) ---
 
-# --- Exercise 4 & Optional Challenge: Knapsack Problem ---
-
-def knapsack(W, weights, values, return_table=False):
+def knapsack(W, weights, values, full_table=False, return_table=False):
     """
-    Solves the 0/1 Knapsack Problem using Dynamic Programming.
+    Solves the 0/1 Knapsack problem using Dynamic Programming.
+    Finds the maximum value that can be placed in a knapsack of capacity W.
 
     Parameters
     ----------
     W : int
         The maximum weight capacity of the knapsack.
-    weights : list or array
-        The weight of each item.
-    values : list or array
-        The value of each item.
+    weights : list
+        List of weights of the items.
+    values : list
+        List of values of the items.
+    full_table : bool, optional
+        A deprecated argument, retained for compatibility.
     return_table : bool, optional
-        If True, returns the full DP table instead of just the max value.
+        If True, the full DP table is returned instead of just the max value.
 
     Returns
     -------
     int or list[list[int]]
-        The maximum value or the full DP table.
+        The maximum achievable value, or the full DP table.
     """
+    # Get the total number of items to be considered (n).
     n = len(values)
-    # 1. Initialize the DP table: (n+1) rows for items, (W+1) columns for capacity.
-    # table[i][j] stores the max value with first i items and capacity j.
-    table = [[0 for _ in range(W + 1)] for _ in range(n + 1)]
+    # Initialize a 2D table (n+1 rows for items, W+1 columns for capacity) with all zeros.
+    # table[i][j] will store the max value using the first 'i' items with capacity 'j'.
+    table = [[0 for x in range(W + 1)] for x in range(n + 1)]
 
-    # 2. Fill the DP table row by row (i: current item index, j: current capacity)
+    # Iterate through the items (i is the item index + 1, from 1 to n).
     for i in range(1, n + 1):
+        # Iterate through the possible knapsack weights/capacities (j, from 1 to W).
         for j in range(1, W + 1):
-            # Item indices in weights/values lists are (i-1)
-            item_weight = weights[i-1]
-            item_value = values[i-1]
 
-            # Case 1: If the current item's weight fits within the current capacity (j)
-            if item_weight <= j:
-                # Option A (Include the item):
-                # Value is the item's value + the max value from the previous row (i-1)
-                # using the remaining capacity (j - item_weight).
-                value_with_item = item_value + table[i-1][j - item_weight]
-                
-                # Option B (Exclude the item):
-                # Value is simply the max value from the previous row (i-1) at the same capacity (j).
+            # Check if the current item's weight (weights[i-1]) can fit into the current capacity (j).
+            if weights[i-1] <= j:
+                # Value if item IS included: item's value + max value from previous item (i-1) with remaining capacity (j - weight).
+                value_with_item = values[i-1] + table[i-1][j - weights[i-1]]
+                # Value if item is EXCLUDED: max value from previous item (i-1) with the same capacity (j).
                 value_without_item = table[i-1][j]
                 
-                # Store the best choice (max of Option A and Option B)
+                # The cell's value is the maximum of the two options.
                 table[i][j] = max(value_with_item, value_without_item)
 
-            # Case 2: Item does not fit (item_weight > j)
+            # If the current item's weight is greater than the current capacity (j),
             else:
-                # Value must be the same as the previous item's max value at this capacity.
+                # The item cannot be included. The maximum value is the same as the previous item's value at this capacity.
                 table[i][j] = table[i-1][j]
-    
-    # Check if the user wants the full table or just the max value
-    if return_table:
+
+    # Return the full table if requested, otherwise return the maximum value (bottom-right cell).
+    if return_table or full_table:
         return table
-    
-    # The maximum value is at the bottom-right cell
+
     return table[n][W]
 
+# --- Optional Challenge: Knapsack with Item Tracking (DP + Backtracking) ---
 
 def knapsack_with_items(W, weights, values, names):
     """
-    Solves the 0/1 Knapsack problem using DP and tracks the included items (Optional Challenge).
+    Solves the 0/1 Knapsack problem, finds the maximum value, and tracks the included items.
     """
     n = len(values)
-    # 1. Initialize and fill the DP table (same as knapsack function)
+    
+    # 1. Build the DP Table (uses the knapsack function logic internally)
     table = knapsack(W, weights, values, return_table=True)
-
+    
     # --- 2. Backtracking to find included items ---
-    final_max_value = table[n][W]
+    
+    # Start at the bottom-right cell (max value)
+    res = table[n][W]
     included_items = []
-    current_value = final_max_value
     current_capacity = W
-
+    
     # Iterate backward from the last item (n) to the first (1)
     for i in range(n, 0, -1):
-        # Check if the max value for this item (i) is different from the max value
-        # without this item (i-1). If they differ, item 'i' was included.
-        if current_value != table[i-1][current_capacity]:
-            # Item i was included. Record its name and update the state.
+        # If the value at table[i][current_capacity] is DIFFERENT from table[i-1][current_capacity],
+        # it means item 'i' was included in the optimal solution for this capacity.
+        if res != table[i-1][current_capacity]:
+            # Item 'i' (index i-1) was included
             included_items.append(names[i-1])
-
-            # Update the required residual value and capacity
-            current_value -= values[i-1]
-            current_capacity -= weights[i-1]
-
-    included_items.reverse() # Reverse to show items in original order
-    return included_items, final_max_value
-
-
-def show_game(game_board, n_steps=10, pause=0.5):
-    """
-    Placeholder for the Jupyter Notebook testing function.
-    """
-    pass
+            
+            # Update the residual value and capacity
+            res = res - values[i-1]
+            current_capacity = current_capacity - weights[i-1]
+            
+    # The items are found in reverse order of processing, so reverse the list for readability
+    included_items.reverse()
+    
+    # The max value is always the final cell of the table
+    max_value = table[n][W]
+    
+    return included_items, max_value
