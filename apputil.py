@@ -4,35 +4,27 @@ import time
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-current_board=np.array([
-    1,0,0,1,1,0,
-    1,0,1,1,0,0,
-    0,1,0,1,1,1
-], dtype=int)
+def update_board(current_board):
+    # Pad with zeros so edge cells treat out-of-bounds as dead
+    padded = np.pad(current_board, 1, mode='constant')
 
-def update_board(current_board, shape):
-    # your code here ...
-    n_rows, n_cols = shape
+    # Sum neighbors in the 3x3 window around each cell (excluding the cell itself)
+    neighbor_count = (
+        padded[:-2, :-2] + padded[:-2, 1:-1] + padded[:-2, 2:] +
+        padded[1:-1, :-2] +                     padded[1:-1, 2:] +
+        padded[2:, :-2]  + padded[2:, 1:-1]  + padded[2:, 2:]
+    )
 
-    if current_board.size != n_rows * n_cols:
-        raise ValueError(
-            f"Shape {shape} is incompatible with array of size {current_board.size}"
-        )
-    board = current_board.reshape(shape)
-    #board=current_board.reshape((3,6))
-    board_pad=np.pad(board, pad_width=1, mode='constant', constant_values=0)
-    neighbor_count=(board_pad[0:-2, 0:-2] + board_pad[0:-2, 1:-1] + board_pad[0:-2, 2:  ] +  # above
-                    board_pad[1:-1, 0:-2]                         + board_pad[1:-1, 2:  ] +  # sides
-                    board_pad[2:  , 0:-2] + board_pad[2:  , 1:-1] + board_pad[2:  , 2:  ] )  # below
-    #rules
-    alive=(board==1)
-    survive=alive & ((neighbor_count==2)|(neighbor_count==3))
-    born=(~alive) & (neighbor_count==3)
-    updated_board = (survive|born).astype(int)
+    # Apply Game of Life rules
+    updated_board = (
+        (neighbor_count == 3) |
+        ((current_board == 1) & (neighbor_count == 2))
+    ).astype(int)
+
     return updated_board
 
 
-def show_game(game_board, shape, n_steps=10, pause=0.5):
+def show_game(game_board, n_steps=10, pause=0.5):
     """
     Show `n_steps` of Conway's Game of Life, given the `update_board` function.
 
@@ -49,7 +41,7 @@ def show_game(game_board, shape, n_steps=10, pause=0.5):
         clear_output(wait=True)
 
         # update board
-        game_board = update_board(game_board, shape)
+        game_board = update_board(game_board)
 
         # show board
         sns.heatmap(game_board, cmap='plasma', cbar=False, square=True)
@@ -59,3 +51,31 @@ def show_game(game_board, shape, n_steps=10, pause=0.5):
         # wait for the next step
         if step + 1 < n_steps:
             time.sleep(pause)
+
+
+def play_game_recursive():
+    """
+    Play a fixed number of Conway's Game of Life steps on a random 10x10 board.
+
+    Returns:
+    numpy.ndarray
+        The board state after the recursive simulation.
+    """
+    max_steps = 10
+    start_board = np.random.randint(2, size=(10, 10))
+
+    def recurse(board, remaining):
+        if remaining == 0:
+            return board
+        return recurse(update_board(board), remaining - 1)
+
+    return recurse(start_board, max_steps)
+
+
+if __name__ == "__main__":
+    # Simple demo: advance a random board a few steps and print the result.
+    board = np.random.randint(2, size=(5, 5))
+    print("Initial board:\n", board)
+    for i in range(3):
+        board = update_board(board)
+        print(f"\nBoard after step {i + 1}:\n", board)
