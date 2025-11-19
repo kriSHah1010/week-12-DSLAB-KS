@@ -26,34 +26,31 @@ def update_board(current_board):
     # Initialize the neighbor count array to zeros
     neighbors = np.zeros_like(current_board, dtype=int)
     
-    # Count neighbors for each cell using explicit indexing with periodic boundaries
-    for i in range(rows):
-        for j in range(cols):
-            # Count live neighbors in the 3x3 neighborhood (excluding center)
-            count = 0
-            for dx in [-1, 0, 1]:
-                for dy in [-1, 0, 1]:
-                    if dx == 0 and dy == 0:
-                        continue  # Skip the center cell
-                    # Calculate neighbor coordinates with periodic boundaries
-                    ni = (i + dx) % rows
-                    nj = (j + dy) % cols
-                    count += current_board[ni, nj]
-            neighbors[i, j] = count
+    # Count all 8 neighbors using roll with periodic boundaries
+    # This approach correctly handles toroidal boundaries
+    for dx in (-1, 0, 1):
+        for dy in (-1, 0, 1):
+            if dx == 0 and dy == 0:
+                continue  # Skip the center cell itself
+            # Roll the board and add to neighbor count
+            rolled = np.roll(current_board, dx, axis=0)
+            rolled = np.roll(rolled, dy, axis=1)
+            neighbors += rolled
     
     # Create a copy for the updated state
-    updated_board = current_board.copy()
+    updated_board = np.zeros_like(current_board)
     
-    # --- Apply the Game of Life Rules (Vectorized) ---
+    # Apply Conway's Game of Life rules:
+    # 1. Any live cell with 2 or 3 live neighbors survives
+    # 2. Any dead cell with exactly 3 live neighbors becomes alive
+    # 3. All other live cells die, all other dead cells stay dead
     
-    # Rule 1 & 3 (Death): Live cells (1) die if neighbors < 2 (Underpopulation) or neighbors > 3 (Overpopulation)
-    must_die = (current_board == 1) & ((neighbors < 2) | (neighbors > 3))
-    updated_board[must_die] = 0
+    # Live cells survive if they have exactly 2 or 3 neighbors
+    updated_board[(current_board == 1) & ((neighbors == 2) | (neighbors == 3))] = 1
     
-    # Rule 4 (Reproduction): Dead cells (0) become live if neighbors == 3
-    must_live = (current_board == 0) & (neighbors == 3)
-    updated_board[must_live] = 1
-
+    # Dead cells become alive if they have exactly 3 neighbors
+    updated_board[(current_board == 0) & (neighbors == 3)] = 1
+    
     return updated_board
 
 def show_game(game_board, n_steps=10, pause=0.5):
