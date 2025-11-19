@@ -4,70 +4,52 @@ import time
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-# --- Exercise 2: Iterative Game of Life Update ---
+current_board=np.array([
+    1,0,0,1,1,0,
+    1,0,1,1,0,0,
+    0,1,0,1,1,1
+], dtype=int)
 
-def update_board(current_board):
+def update_board(current_board, shape):
+    # your code here ...
+    n_rows, n_cols = shape
+
+    if current_board.size != n_rows * n_cols:
+        raise ValueError(
+            f"Shape {shape} is incompatible with array of size {current_board.size}"
+        )
+    board = current_board.reshape(shape)
+    #board=current_board.reshape((3,6))
+    board_pad=np.pad(board, pad_width=1, mode='constant', constant_values=0)
+    neighbor_count=(board_pad[0:-2, 0:-2] + board_pad[0:-2, 1:-1] + board_pad[0:-2, 2:  ] +  # above
+                    board_pad[1:-1, 0:-2]                         + board_pad[1:-1, 2:  ] +  # sides
+                    board_pad[2:  , 0:-2] + board_pad[2:  , 1:-1] + board_pad[2:  , 2:  ] )  # below
+    #rules
+    alive=(board==1)
+    survive=alive & ((neighbor_count==2)|(neighbor_count==3))
+    born=(~alive) & (neighbor_count==3)
+    updated_board = (survive|born).astype(int)
+    return updated_board
+
+
+def show_game(game_board, shape, n_steps=10, pause=0.5):
     """
-    Executes one step of Conway's Game of Life for the given binary NumPy array.
-    Uses periodic (toroidal) boundary conditions.
+    Show `n_steps` of Conway's Game of Life, given the `update_board` function.
 
     Parameters
     ----------
-    current_board : numpy.ndarray
-        A binary array (0s and 1s) representing the current state of the board.
-
-    Returns
-    -------
-    numpy.ndarray
-        The board after one step of the Game of Life.
-    """
-    rows, cols = current_board.shape
-    
-    # Ensure input is integer type
-    board = current_board.astype(int)
-    
-    # Initialize the next board state to all zeros (dead)
-    next_board = np.zeros((rows, cols), dtype=int)
-    
-    # Count neighbors manually with proper toroidal boundaries
-    for i in range(rows):
-        for j in range(cols):
-            # Count live neighbors with toroidal boundaries
-            live_neighbors = 0
-            
-            # Check all 8 surrounding cells with wrapping
-            for di in [-1, 0, 1]:
-                for dj in [-1, 0, 1]:
-                    if di == 0 and dj == 0:
-                        continue  # Skip the center cell
-                    
-                    # Calculate neighbor position with wrapping
-                    ni = (i + di) % rows
-                    nj = (j + dj) % cols
-                    
-                    live_neighbors += board[ni, nj]
-            
-            # Apply Conway's Game of Life rules
-            if board[i, j] == 1:  # Cell is alive
-                if live_neighbors == 2 or live_neighbors == 3:
-                    next_board[i, j] = 1  # Survival
-                # else: stays dead (0) - which is the default
-            else:  # Cell is dead
-                if live_neighbors == 3:
-                    next_board[i, j] = 1  # Birth
-                # else: stays dead (0) - which is the default
-    
-    return next_board
-
-def show_game(game_board, n_steps=10, pause=0.5):
-    """
-    Show `n_steps` of Conway's Game of Life (for notebook testing).
+    game_board : numpy.ndarray
+        A binary array representing the initial starting conditions for Conway's Game of Life. In this array, ` represents a "living" cell and 0 represents a "dead" cell.
+    n_steps : int, optional
+        Number of game steps to run through, by default 10
+    pause : float, optional
+        Number of seconds to wait between steps, by default 0.5
     """
     for step in range(n_steps):
         clear_output(wait=True)
 
         # update board
-        game_board = update_board(game_board)
+        game_board = update_board(game_board, shape)
 
         # show board
         sns.heatmap(game_board, cmap='plasma', cbar=False, square=True)
@@ -77,114 +59,3 @@ def show_game(game_board, n_steps=10, pause=0.5):
         # wait for the next step
         if step + 1 < n_steps:
             time.sleep(pause)
-
-# --- Bonus Exercise 3: Recursive Game of Life ---
-
-def recursive_game_of_life(board=None, n_steps=10):
-    """
-    Plays Conway's Game of Life recursively for a given number of steps.
-    """
-    # 1. Initialization and Base Case Check
-    if board is None:
-        # Initial call: Create a new random 10x10 board
-        board = np.random.randint(2, size=(10, 10))
-
-    if n_steps <= 0:
-        # Base Case: Stop recursion when steps are complete
-        return board
-
-    # 2. Recursive Step
-    # a. Update the board state for one step
-    next_board = update_board(board)
-
-    # b. Recursively call the function with the updated board and one less step
-    return recursive_game_of_life(board=next_board, n_steps=n_steps - 1)
-
-# --- Exercise 4: 0/1 Knapsack Problem (Dynamic Programming) ---
-
-def knapsack(W, weights, values, full_table=False, return_table=False):
-    """
-    Solves the 0/1 Knapsack problem using Dynamic Programming.
-    Finds the maximum value that can be placed in a knapsack of capacity W.
-
-    Parameters
-    ----------
-    W : int
-        The maximum weight capacity of the knapsack.
-    weights : list
-        List of weights of the items.
-    values : list
-        List of values of the items.
-    full_table : bool, optional
-        A deprecated argument, retained for compatibility.
-    return_table : bool, optional
-        If True, the full DP table is returned instead of just the max value.
-
-    Returns
-    -------
-    int or list[list[int]]
-        The maximum achievable value, or the full DP table.
-    """
-    # Get the total number of items to be considered (n).
-    n = len(values)
-    # Initialize a 2D table (n+1 rows for items, W+1 columns for capacity) with all zeros.
-    # table[i][j] will store the max value using the first 'i' items with capacity 'j'.
-    table = [[0 for x in range(W + 1)] for x in range(n + 1)]
-
-    # Initialize the DP table: first row and first column should be 0
-    for i in range(n + 1):
-        for j in range(W + 1):
-            if i == 0 or j == 0:
-                table[i][j] = 0
-            elif weights[i-1] <= j:
-                # Value if item IS included: item's value + max value from previous item (i-1) with remaining capacity (j - weight).
-                value_with_item = values[i-1] + table[i-1][j - weights[i-1]]
-                # Value if item is EXCLUDED: max value from previous item (i-1) with the same capacity (j).
-                value_without_item = table[i-1][j]
-                
-                # The cell's value is the maximum of the two options.
-                table[i][j] = max(value_with_item, value_without_item)
-            else:
-                # If the current item's weight is greater than the current capacity (j),
-                # The item cannot be included. The maximum value is the same as the previous item's value at this capacity.
-                table[i][j] = table[i-1][j]
-
-    # Return the full table if requested, otherwise return the maximum value (bottom-right cell).
-    if return_table or full_table:
-        return table
-
-    return table[n][W]
-
-# --- Optional Challenge: Knapsack with Item Tracking (DP + Backtracking) ---
-
-def knapsack_with_items(W, weights, values, names):
-    """
-    Solves the 0/1 Knapsack problem, finds the maximum value, and tracks the included items.
-    """
-    n = len(values)
-    
-    # 1. Build the DP Table (uses the knapsack function logic internally)
-    table = knapsack(W, weights, values, return_table=True)
-    
-    # --- 2. Backtracking to find included items ---
-    
-    # Start at the bottom-right cell (max value)
-    max_value = table[n][W]
-    included_items = []
-    current_capacity = W
-    
-    # Iterate backward from the last item (n) to the first (1)
-    for i in range(n, 0, -1):
-        # If the value at table[i][current_capacity] is DIFFERENT from table[i-1][current_capacity],
-        # it means item 'i' was included in the optimal solution for this capacity.
-        if table[i][current_capacity] != table[i-1][current_capacity]:
-            # Item 'i' (index i-1) was included
-            included_items.append(names[i-1])
-            
-            # Update the capacity by subtracting the weight of the included item
-            current_capacity = current_capacity - weights[i-1]
-            
-    # The items are found in reverse order of processing, so reverse the list for readability
-    included_items.reverse()
-    
-    return included_items, max_value
