@@ -26,43 +26,33 @@ def update_board(current_board):
     # Initialize the neighbor count array to zeros
     neighbors = np.zeros_like(current_board, dtype=int)
     
-    # Efficiently count neighbors using NumPy's roll function for toroidal (wrapping) boundaries.
-    # We sum up 8 shifted copies of the board.
+    # Count neighbors using roll - but we need to be careful not to count the center cell
+    # The issue with the previous approach: each roll includes the cell itself
     
-    # Top-Left, Top, Top-Right
-    neighbors += np.roll(np.roll(current_board, -1, axis=0), -1, axis=1) # Top-Left
-    neighbors += np.roll(current_board, -1, axis=0)                     # Top
-    neighbors += np.roll(np.roll(current_board, -1, axis=0), 1, axis=1)  # Top-Right
-
-    # Left, Right
-    neighbors += np.roll(current_board, -1, axis=1)                      # Left
-    neighbors += np.roll(current_board, 1, axis=1)                       # Right
-
-    # Bottom-Left, Bottom, Bottom-Right
-    neighbors += np.roll(np.roll(current_board, 1, axis=0), -1, axis=1)  # Bottom-Left
-    neighbors += np.roll(current_board, 1, axis=0)                       # Bottom
-    neighbors += np.roll(np.roll(current_board, 1, axis=0), 1, axis=1)   # Bottom-Right
-
-    # Initialize the next board state to all zeros (dead)
-    next_board = np.zeros_like(current_board, dtype=int)
+    # Better approach: count all 8 directions
+    for dx in (-1, 0, 1):
+        for dy in (-1, 0, 1):
+            if dx == 0 and dy == 0:
+                continue  # Skip the center cell
+            # Roll and add to neighbors count
+            neighbors += np.roll(np.roll(current_board, dx, axis=0), dy, axis=1)
+    
+    # Create a copy for the updated state
+    updated_board = current_board.copy()
     
     # --- Apply the Game of Life Rules (Vectorized) ---
     
-    # Rule 2 (Survival): A live cell (current_board == 1) remains alive if it has 2 or 3 neighbors.
-    # This also handles the case where cells with 4+ neighbors (Overpopulation) are NOT included.
-    survival = (current_board == 1) & ((neighbors == 2) | (neighbors == 3))
-    next_board[survival] = 1
+    # Rule 1 & 3 (Death): Live cells (1) die if neighbors < 2 (Underpopulation) or neighbors > 3 (Overpopulation)
+    must_die = (current_board == 1) & ((neighbors < 2) | (neighbors > 3))
+    updated_board[must_die] = 0
     
-    # Rule 4 (Reproduction): A dead cell (current_board == 0) becomes alive if it has exactly 3 neighbors.
-    reproduction = (current_board == 0) & (neighbors == 3)
-    next_board[reproduction] = 1
-    
-    # All other cells remain dead (0).
-    # - Live cells with < 2 neighbors (Underpopulation) remain 0.
-    # - Live cells with > 3 neighbors (Overpopulation) remain 0.
-    # - Dead cells with != 3 neighbors remain 0.
-    
-    return next_board
+    # Rule 4 (Reproduction): Dead cells (0) become live if neighbors == 3
+    must_live = (current_board == 0) & (neighbors == 3)
+    updated_board[must_live] = 1
+
+    # Rule 2 (Survival): Live cells with 2 or 3 neighbors survive (implicitly handled)
+
+    return updated_board
 
 def show_game(game_board, n_steps=10, pause=0.5):
     """
@@ -136,13 +126,12 @@ def knapsack(W, weights, values, full_table=False, return_table=False):
     # table[i][j] will store the max value using the first 'i' items with capacity 'j'.
     table = [[0 for x in range(W + 1)] for x in range(n + 1)]
 
-    # Iterate through the items (i is the item index + 1, from 1 to n).
-    for i in range(1, n + 1):
-        # Iterate through the possible knapsack weights/capacities (j, from 1 to W).
-        for j in range(1, W + 1):
-
-            # Check if the current item's weight (weights[i-1]) can fit into the current capacity (j).
-            if weights[i-1] <= j:
+    # Initialize the DP table: first row and first column should be 0
+    for i in range(n + 1):
+        for j in range(W + 1):
+            if i == 0 or j == 0:
+                table[i][j] = 0
+            elif weights[i-1] <= j:
                 # Value if item IS included: item's value + max value from previous item (i-1) with remaining capacity (j - weight).
                 value_with_item = values[i-1] + table[i-1][j - weights[i-1]]
                 # Value if item is EXCLUDED: max value from previous item (i-1) with the same capacity (j).
@@ -150,9 +139,8 @@ def knapsack(W, weights, values, full_table=False, return_table=False):
                 
                 # The cell's value is the maximum of the two options.
                 table[i][j] = max(value_with_item, value_without_item)
-
-            # If the current item's weight is greater than the current capacity (j),
             else:
+                # If the current item's weight is greater than the current capacity (j),
                 # The item cannot be included. The maximum value is the same as the previous item's value at this capacity.
                 table[i][j] = table[i-1][j]
 
@@ -176,7 +164,7 @@ def knapsack_with_items(W, weights, values, names):
     # --- 2. Backtracking to find included items ---
     
     # Start at the bottom-right cell (max value)
-    res = table[n][W]
+    max_value = table[n][W]
     included_items = []
     current_capacity = W
     
@@ -184,18 +172,14 @@ def knapsack_with_items(W, weights, values, names):
     for i in range(n, 0, -1):
         # If the value at table[i][current_capacity] is DIFFERENT from table[i-1][current_capacity],
         # it means item 'i' was included in the optimal solution for this capacity.
-        if res != table[i-1][current_capacity]:
+        if table[i][current_capacity] != table[i-1][current_capacity]:
             # Item 'i' (index i-1) was included
             included_items.append(names[i-1])
             
-            # Update the residual value and capacity
-            res = res - values[i-1]
+            # Update the capacity by subtracting the weight of the included item
             current_capacity = current_capacity - weights[i-1]
             
     # The items are found in reverse order of processing, so reverse the list for readability
     included_items.reverse()
-    
-    # The max value is always the final cell of the table
-    max_value = table[n][W]
     
     return included_items, max_value
